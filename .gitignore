@@ -1,0 +1,11 @@
+/vendor/
+/node_modules/
+/assets/dist/
+/phpcs-report.xml
+/.phpunit.result.cache
+/phpunit.xml
+/phpunit-integration.xml
+/phpcs.xml
+wp-tests-config.php
+.DS_Store
+*.log

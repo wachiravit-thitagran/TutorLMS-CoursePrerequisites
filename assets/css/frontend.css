@@ -1,0 +1,50 @@
+.tlp-locked-notice {
+	background: #f7f7f8;
+	border: 1px solid #d9dbe0;
+	border-left: 4px solid #8a8f98;
+	border-radius: 4px;
+	margin: 0 0 24px;
+	padding: 16px 20px;
+}
+
+.tlp-locked-notice__headline {
+	font-weight: 600;
+	margin: 0 0 8px;
+}
+
+.tlp-locked-notice__icon {
+	margin-right: 6px;
+}
+
+.tlp-locked-notice__progress {
+	color: #55585f;
+	font-size: 0.9em;
+	margin: 0 0 10px;
+}
+
+.tlp-locked-notice__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.tlp-locked-notice__item {
+	align-items: baseline;
+	display: flex;
+	gap: 8px;
+	padding: 3px 0;
+}
+
+.tlp-locked-notice__item.is-done {
+	color: #1c7c3c;
+}
+
+.tlp-locked-notice__marker {
+	flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
+	.tlp-locked-notice {
+		padding: 14px 16px;
+	}
+}

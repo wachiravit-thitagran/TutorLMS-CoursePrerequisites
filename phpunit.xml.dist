@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Unit suite: pure domain logic, no WordPress, no database.
+
+	Everything under src/Domain/ is written so it can run here. If a test needs
+	WordPress to be loaded, it belongs in the integration suite instead.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+	bootstrap="tests/bootstrap.php"
+	colors="true"
+	cacheResult="false"
+	failOnWarning="true"
+	failOnRisky="true"
+	beStrictAboutTestsThatDoNotTestAnything="true"
+	convertDeprecationsToExceptions="false">
+	<testsuites>
+		<testsuite name="unit">
+			<directory suffix="Test.php">tests/Unit</directory>
+		</testsuite>
+	</testsuites>
+	<coverage>
+		<include>
+			<directory suffix=".php">src/Domain</directory>
+			<directory suffix=".php">src/Application</directory>
+		</include>
+	</coverage>
+</phpunit>
