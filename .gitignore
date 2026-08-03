@@ -1,6 +1,8 @@
 /vendor/
 /node_modules/
 /assets/dist/
+/build/
+/dist/
 /phpcs-report.xml
 /.phpunit.result.cache
 /phpunit.xml
@@ -8,4 +10,6 @@
 /phpcs.xml
 wp-tests-config.php
 .DS_Store
+Thumbs.db
 *.log
+*.zip

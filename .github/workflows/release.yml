@@ -1,0 +1,235 @@
+name: Build & Release
+
+# Releases are cut from a *tested* commit, not from whatever last landed on
+# main. The Tests workflow runs first; only when it reports success for a push
+# to main does this workflow wake up, and it then builds, tags and publishes
+# the exact commit that suite ran against — github.event.workflow_run.head_sha
+# — rather than the current tip of main, which may already have moved on.
+#
+# Skip a release for a particular commit by putting [skip release] in its
+# message. Anything else pushed to main that passes the tests gets one.
+on:
+  workflow_run:
+    workflows: ['Tests']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & publish
+    # Kept at one indent level so the folded scalar collapses to a single line.
+    #
+    # Tests also runs for pull requests, where head_branch is the source branch
+    # and head_sha is an ephemeral merge commit — never releasable. A PR opened
+    # *from* main would otherwise slip past the branch filter, so exclude it
+    # explicitly. Push and a manual Tests dispatch on main both qualify.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      !contains(github.event.workflow_run.head_commit.message, '[skip release]'))
+    runs-on: ubuntu-latest
+
+    env:
+      # The single source of truth for this run. Checkout, version computation,
+      # tag and release all use it, so the release can never end up attached to
+      # a different commit than the one whose tests passed.
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      MAIN_FILE: tutor-learning-paths.php
+
+    steps:
+      - name: Checkout the tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Confirm the checkout
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          if [ "$head" != "$RELEASE_SHA" ]; then
+            echo "Checked out ${head} but expected ${RELEASE_SHA}; refusing to release." >&2
+            exit 1
+          fi
+          echo "Releasing ${head}"
+          git log -1 --format='%h %s'
+
+      - name: Compute next version
+        id: ver
+        run: |
+          set -euo pipefail
+
+          raw=$(grep -iE '^[[:space:]]*\*[[:space:]]*Version:' "$MAIN_FILE" | head -1 | sed -E 's/.*[Vv]ersion:[[:space:]]*//' | tr -d '[:space:]')
+
+          if [ -z "$raw" ]; then
+            echo "No Version header found in ${MAIN_FILE}; aborting." >&2
+            exit 1
+          fi
+
+          # Validate the whole header value instead of grepping three digits out
+          # of it. A malformed header ("1.0", "next", "1.0.0.0") stops the build
+          # here rather than silently producing a nonsense tag.
+          if ! printf '%s' "$raw" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
+            echo "Version header '${raw}' is not semver; aborting." >&2
+            exit 1
+          fi
+
+          # A pre-release or build suffix on the header (this repo ships
+          # 1.0.0-dev) means "this version is not released yet", not "release a
+          # version called 1.0.0-dev". Strip it deliberately: the release, the
+          # tag and every stamped file use the numeric core only, so a tag like
+          # v1.0.0-dev can never be created, and the suffix never reaches a
+          # site's plugin list.
+          current=${raw%%[-+]*}
+          if [ "$current" != "$raw" ]; then
+            echo "Header '${raw}' is a pre-release; releasing its core ${current}."
+          fi
+
+          latest_tag=$(git tag --list 'v*' --sort=-v:refname | grep -oE '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | sed 's/^v//' || true)
+          echo "header=${raw}  core=${current}  latest_tag=${latest_tag:-none}"
+
+          if [ -z "${latest_tag}" ]; then
+            # First release: the header is the version.
+            next="$current"
+          else
+            higher=$(printf '%s\n%s\n' "$current" "$latest_tag" | sort -V | tail -1)
+            if [ "$higher" = "$current" ] && [ "$current" != "$latest_tag" ]; then
+              # A human bumped the header past the last tag: honour it, which is
+              # how a MINOR or MAJOR release is requested. Bumping the header to
+              # 1.1.0-dev during development asks for 1.1.0 next.
+              next="$current"
+            else
+              # Otherwise auto-bump the PATCH from the newest tag. This is also
+              # the path taken when the header still names an already-released
+              # version, with or without a -dev suffix.
+              IFS=. read -r MA MI PA <<< "$latest_tag"
+              next="${MA}.${MI}.$((PA + 1))"
+            fi
+          fi
+
+          if ! printf '%s' "$next" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Computed version '$next' is not valid semver; aborting." >&2
+            exit 1
+          fi
+
+          if git rev-parse -q --verify "refs/tags/v$next" >/dev/null; then
+            existing=$(git rev-list -n 1 "v$next")
+            if [ "$existing" != "$RELEASE_SHA" ]; then
+              echo "Tag v$next already exists at ${existing}, which is not ${RELEASE_SHA}; aborting." >&2
+              exit 1
+            fi
+          fi
+
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "tag=v$next" >> "$GITHUB_OUTPUT"
+          echo "Next version: $next (tag v$next)"
+
+      - name: Stamp version into plugin
+        env:
+          NEXT: ${{ steps.ver.outputs.next }}
+        run: |
+          set -euo pipefail
+
+          # Plugin header and the runtime constant. The value pattern is [^']*
+          # rather than [0-9.]* on purpose: the constant may currently hold a
+          # pre-release string such as 1.0.0-dev, and a digits-only pattern
+          # would leave the suffix behind.
+          sed -i -E "s/^([[:space:]]*\*[[:space:]]*Version:[[:space:]]*).*/\1${NEXT}/" "$MAIN_FILE"
+          sed -i -E "s/('TLP_VERSION',[[:space:]]*')[^']*(')/\1${NEXT}\2/" "$MAIN_FILE"
+
+          # readme.txt is what WordPress shows as the installed version.
+          sed -i -E "s/^(Stable tag:[[:space:]]*).*/\1${NEXT}/" readme.txt
+
+          # No .pot is committed yet. Stamp one the moment it appears rather
+          # than waiting for a release to ship a stale Project-Id-Version.
+          shopt -s nullglob
+          pots=(languages/*.pot)
+          shopt -u nullglob
+          for pot in "${pots[@]}"; do
+            sed -i -E "s/(Project-Id-Version:[[:space:]]*.*[[:space:]])[0-9][0-9A-Za-z.+-]*/\1${NEXT}/" "$pot"
+          done
+
+          # Every location must now agree, or the build is not what it claims.
+          # Values are compared whole, so a leftover -dev suffix fails here.
+          check() {
+            local label="$1" found="$2"
+            if [ "$found" != "$NEXT" ]; then
+              echo "${label} is '${found}', expected '${NEXT}'." >&2
+              exit 1
+            fi
+            echo "  ${label}: ${found}"
+          }
+
+          echo "Stamped ${NEXT}:"
+          check 'plugin header' "$(grep -iE '^[[:space:]]*\*[[:space:]]*Version:' "$MAIN_FILE" | head -1 | sed -E 's/.*[Vv]ersion:[[:space:]]*//' | tr -d '[:space:]')"
+          check 'TLP_VERSION' "$(grep -E "'TLP_VERSION'" "$MAIN_FILE" | head -1 | sed -E "s/.*'TLP_VERSION',[[:space:]]*'([^']*)'.*/\1/")"
+          check 'readme.txt Stable tag' "$(grep -E '^Stable tag:' readme.txt | head -1 | sed -E 's/^Stable tag:[[:space:]]*//' | tr -d '[:space:]')"
+          for pot in "${pots[@]}"; do
+            check "${pot} Project-Id-Version" "$(grep -E 'Project-Id-Version:' "$pot" | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+[0-9A-Za-z.+-]*' | head -1)"
+          done
+          if [ ${#pots[@]} -eq 0 ]; then
+            echo "  languages/*.pot: none committed, nothing to stamp"
+          fi
+
+          # A stray sed must not be allowed to ship broken PHP.
+          if command -v php >/dev/null 2>&1; then
+            php -l "$MAIN_FILE"
+            php -l uninstall.php
+          fi
+
+      - name: Make build script executable
+        run: chmod +x bin/build.sh
+
+      - name: Build plugin zip
+        run: bin/build.sh
+
+      - name: List artifacts
+        run: ls -lh dist/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-zip
+          path: dist/*.zip
+          if-no-files-found: error
+
+      - name: Publish to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists — refreshing assets."
+            gh release upload "$TAG" dist/*.zip --clobber
+          else
+            echo "Creating release $TAG at ${RELEASE_SHA}."
+            gh release create "$TAG" dist/*.zip \
+              --target "$RELEASE_SHA" \
+              --title "$TAG" \
+              --generate-notes
+          fi
+
+      - name: Confirm the tag points at the tested commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          tagged=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq '.sha')
+          if [ "$tagged" != "$RELEASE_SHA" ]; then
+            echo "Tag ${TAG} resolves to ${tagged}, not ${RELEASE_SHA}." >&2
+            exit 1
+          fi
+          echo "${TAG} → ${tagged}"
