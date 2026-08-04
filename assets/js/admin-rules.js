@@ -251,8 +251,16 @@
 	}
 
 	function init( scope ) {
+		// Guard the argument: `init` is also used as an event listener, and an
+		// event object has no querySelectorAll. Anything that cannot be queried
+		// falls back to the document.
+		var root =
+			scope && typeof scope.querySelectorAll === 'function'
+				? scope
+				: document;
+
 		Array.prototype.forEach.call(
-			( scope || document ).querySelectorAll( '.tlp-rule-editor' ),
+			root.querySelectorAll( '.tlp-rule-editor' ),
 			bind
 		);
 	}
@@ -260,7 +268,10 @@
 	window.TLPRuleEditor = { init: init };
 
 	if ( document.readyState === 'loading' ) {
-		document.addEventListener( 'DOMContentLoaded', init );
+		// Wrapped, so the DOMContentLoaded event is not passed in as `scope`.
+		document.addEventListener( 'DOMContentLoaded', function () {
+			init();
+		} );
 	} else {
 		init();
 	}

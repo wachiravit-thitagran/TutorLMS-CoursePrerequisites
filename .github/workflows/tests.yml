@@ -166,10 +166,25 @@ jobs:
           WP_TESTS_PHPUNIT_POLYFILLS_PATH: ${{ github.workspace }}/vendor/yoast/phpunit-polyfills
         run: vendor/bin/phpunit --configuration phpunit-integration.xml.dist
 
+  js:
+    name: JavaScript (node --test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Shell-expanded glob on purpose: `node --test dir/**/*.mjs` needs Node 22,
+      # and this matrix pins 20.
+      - name: Run the JavaScript tests
+        run: node --test tests/js/*.test.mjs
+
   results:
     name: Test results
     runs-on: ubuntu-latest
-    needs: [ lint, unit, integration ]
+    needs: [ lint, js, unit, integration ]
     if: always()
     steps:
       - name: Fail if a required job failed
@@ -183,6 +198,10 @@ jobs:
           fi
           if [ "${{ needs.lint.result }}" != "success" ]; then
             echo "Linting failed."
+            exit 1
+          fi
+          if [ "${{ needs.js.result }}" != "success" ]; then
+            echo "The JavaScript suite failed."
             exit 1
           fi
           if [ "${{ needs.integration.result }}" != "success" ]; then
