@@ -71,6 +71,47 @@ final class HookMap {
 	}
 
 	/**
+	 * Actions that mark the place on a single-course page where a learner-facing
+	 * notice belongs.
+	 *
+	 * Three names, deliberately chosen from three *different* Tutor template
+	 * files, because a theme that overrides Tutor's templates overrides one or
+	 * two of them, almost never all three:
+	 *
+	 * - `tutor_course/single/before/inner-wrap` - templates/single-course.php,
+	 *   top of the main column, above the course tabs.
+	 * - `tutor_course/single/before/content` - templates/single/course/
+	 *   course-content.php, immediately above the course description. This is
+	 *   the position the notice used to occupy.
+	 * - `tutor_course/single/entry/after` - templates/single/course/
+	 *   course-entry-box.php, directly under the enrol button, which is the
+	 *   thing that appeared with no explanation when this went wrong.
+	 *
+	 * Attaching to a hook that never fires costs nothing, and `CourseLock`
+	 * renders at most one notice per request however many of them fire.
+	 *
+	 * Why not `the_content`, which this used to rely on: Tutor's single-course
+	 * template renders the course with `get_the_ID()` and never calls
+	 * `the_post()` on the main query, so `in_the_loop()` is false for the whole
+	 * page and a `the_content` filter guarded on it never runs. Enforcement was
+	 * unaffected - the guards do that - but the explanation silently vanished.
+	 * `the_content` is kept as a last-resort fallback for themes that do render
+	 * the description through the main loop.
+	 *
+	 * @return string[]
+	 */
+	public static function course_page_notice_actions(): array {
+		return (array) apply_filters(
+			'tlp_hook_course_page_notice_actions',
+			array(
+				'tutor_course/single/before/inner-wrap',
+				'tutor_course/single/before/content',
+				'tutor_course/single/entry/after',
+			)
+		);
+	}
+
+	/**
 	 * Actions fired when a learner completes a course.
 	 *
 	 * @return string[]

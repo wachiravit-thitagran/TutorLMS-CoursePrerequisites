@@ -1,5 +1,7 @@
 /vendor/
 /node_modules/
+# Tutor LMS checkout used by the hook contract suite, see bin/install-tutor.sh.
+/.tutor/
 /assets/dist/
 /build/
 /dist/

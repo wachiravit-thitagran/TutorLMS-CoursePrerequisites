@@ -1,10 +1,11 @@
 # Testing
 
-## สองชุด แยกกันชัดเจน
+## สามชุด แยกกันชัดเจน
 
 | ชุด | รันด้วยอะไร | ใช้เวลา | ตอบคำถามอะไร |
 | --- | --- | --- | --- |
 | **Unit** | PHP อย่างเดียว ไม่มี WordPress ไม่มี DB | ~1 วินาที | ตรรกะถูกไหม (ALL/ANY/AT_LEAST, cycle detection) |
+| **Hook contract** | PHP + ซอร์ส Tutor LMS บนดิสก์ ไม่มี WordPress ไม่มี DB | <1 วินาที | ชื่อ hook ใน `HookMap` ยังมีอยู่จริงใน Tutor เวอร์ชันนี้ไหม |
 | **Integration** | WordPress จริง + Tutor LMS จริง + MySQL | ~2–5 นาที | ตรรกะต่อสายกับข้อมูลจริงถูกไหม |
 
 กฎง่าย ๆ: ถ้า test ต้องการให้ WordPress โหลด มันคือ integration test
@@ -18,6 +19,23 @@
 composer install
 composer test:unit
 ```
+
+### Hook contract
+
+ต้องมีซอร์ส Tutor LMS หนึ่งชุดเท่านั้น ไม่ต้องมี MySQL ไม่ต้องมี WordPress
+
+```bash
+TUTOR_PLUGIN_DIR="$PWD/.tutor" bin/install-tutor.sh 4.0.4   # หรือ dev, latest, 3.0.2
+TUTOR_DIR="$PWD/.tutor/tutor" composer test:hooks
+```
+
+ถ้าติดตั้งชุด integration ไว้แล้ว รัน `composer test:hooks` เปล่า ๆ ได้เลย —
+มันหา Tutor ใต้ `WP_CORE_DIR` เอง
+
+ชุดนี้ **อ่านซอร์ส** ของ Tutor แล้วมองหา `do_action( 'ชื่อ'` / `apply_filters( 'ชื่อ'`
+ไม่ได้บูต WordPress การรันกับ Tutor หกเวอร์ชันจึงถูกพอที่จะทำทุก push
+สิ่งที่มันไม่ตอบ: hook ถูกยิงบนหน้าที่เราต้องการหรือเปล่า — อันนั้น
+`CourseLockNoticeTest` ในชุด integration ตอบ
 
 ### Integration
 
@@ -34,10 +52,11 @@ composer test:integration
 
 ตัวแปรที่ปรับได้: `WP_TESTS_DIR`, `WP_CORE_DIR`, `TUTOR_VERSION`
 
-## เมื่อ integration suite แดง — รันอันนี้ก่อน
+## เมื่อ integration suite แดง — รันสองอันนี้ก่อน
 
 ```bash
-composer test:contract
+composer test:hooks      # ชื่อ hook ยังมีอยู่จริงไหม
+composer test:contract   # ข้อมูลที่ seed ยังตรงกับที่ Tutor เข้าใจไหม
 ```
 
 `SeederContractTest` คือ canary ของทั้งชุด มันตรวจว่า **สิ่งที่ seeder เขียน คือสิ่งที่ Tutor ถือว่าเป็นจริง**
@@ -77,7 +96,17 @@ test บรรยายพฤติกรรม scenario บรรยายโ�
 | --- | --- |
 | `lint` | `php -l` ทุกไฟล์ + PHPCS |
 | `unit` | PHP 8.1 / 8.2 / 8.3 / 8.4 |
-| `integration` | PHP 8.1–8.4 × WP 6.4 / 6.6 / 6.8 / latest / nightly (18 ชุด) |
+| `hooks` | Tutor 3.0.2 / 3.9.6 / 4.0.1 / 4.0.4 / latest / dev (6 ชุด) — PHP เดียว WP เดียว |
+| `integration` | PHP 8.1–8.4 × WP 6.4 / 6.6 / 6.8 / latest / nightly (18 ชุด) — Tutor `latest` ตัวเดียว |
+
+**ทำไม `hooks` เป็น job แยก ไม่ใช่แกนที่สามของ `integration`:** integration matrix
+มี 18 ชุดอยู่แล้ว เติมแกนเวอร์ชัน Tutor เข้าไปจะกลายเป็นร้อยกว่าชุด
+เพื่อข้อมูลที่แกนพิเศษเหล่านั้นไม่ได้ให้เพิ่มเลย (ชื่อ hook ไม่ขึ้นกับเวอร์ชัน PHP หรือ WP)
+job `hooks` ไม่ต้องใช้ MySQL ไม่ต้องโหลด WordPress test suite แต่ละชุดจึงเหลือ
+checkout + download + PHPUnit หนึ่งครั้ง
+
+`dev` (branch ที่ยังไม่ปล่อย) ตั้ง `continue-on-error` — เป็นสัญญาณเตือนล่วงหน้า
+ไม่ใช่ประตูกั้น release เหมือน PHP 8.4 และ WP nightly
 
 **ที่ตั้งเป็น non-blocking โดยตั้งใจ:** PHP 8.4 และ WP nightly
 สองอย่างนี้คือสัญญาณเตือนล่วงหน้า ไม่ใช่ประตูกั้นการ merge

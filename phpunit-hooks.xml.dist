@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Hook contract suite: real Tutor LMS source, no WordPress, no database.
+
+	Answers one question - "does this build of Tutor still provide the names in
+	HookMap" - which is why CI runs it once per Tutor version instead of once per
+	PHP x WordPress combination.
+
+	Requires a Tutor LMS checkout. Either:
+	  TUTOR_PLUGIN_DIR="$PWD/.tutor" bin/install-tutor.sh 4.0.4
+	  TUTOR_DIR="$PWD/.tutor/tutor" vendor/bin/phpunit -c phpunit-hooks.xml.dist
+	or, if you already have the integration environment installed, nothing: the
+	suite finds Tutor under WP_CORE_DIR by itself.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+	bootstrap="tests/contract-bootstrap.php"
+	colors="true"
+	cacheResult="false"
+	failOnWarning="true"
+	failOnRisky="true"
+	beStrictAboutTestsThatDoNotTestAnything="true"
+	convertDeprecationsToExceptions="false">
+	<testsuites>
+		<testsuite name="hooks">
+			<directory suffix="Test.php">tests/Contract</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>

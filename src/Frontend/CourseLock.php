@@ -6,6 +6,7 @@ namespace SpaceWork\TutorLearningPaths\Frontend;
 use SpaceWork\TutorLearningPaths\Application\AccessGate;
 use SpaceWork\TutorLearningPaths\Domain\Access\AccessContext;
 use SpaceWork\TutorLearningPaths\Domain\Access\AccessResult;
+use SpaceWork\TutorLearningPaths\Infrastructure\TutorLMS\HookMap;
 use SpaceWork\TutorLearningPaths\Infrastructure\TutorLMS\TutorAdapterInterface;
 use SpaceWork\TutorLearningPaths\Support\Templates;
 
@@ -20,6 +21,22 @@ defined( 'ABSPATH' ) || exit;
  */
 final class CourseLock {
 
+	/**
+	 * Whether this request has already decided about the automatic notice.
+	 *
+	 * Several candidate hooks are attached on purpose (see
+	 * `HookMap::course_page_notice_actions()`), so "more than one of them fires"
+	 * is the expected case rather than the exception. The first handler to run
+	 * owns the decision and every later one returns immediately, which is what
+	 * makes the notice appear exactly once.
+	 *
+	 * Instance state is request state: `Plugin::boot()` constructs exactly one
+	 * CourseLock per request and PHP throws the object away with the response.
+	 *
+	 * @var bool
+	 */
+	private bool $notice_handled = false;
+
 	public function __construct(
 		private readonly AccessGate $gate,
 		private readonly TutorAdapterInterface $tutor
@@ -27,7 +44,19 @@ final class CourseLock {
 
 	public function register(): void {
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue' ) );
+
+		foreach ( HookMap::course_page_notice_actions() as $hook ) {
+			// Zero accepted arguments: some of these pass a course ID, some pass
+			// nothing, and the handler reads the queried course either way.
+			add_action( (string) $hook, array( $this, 'render_notice' ), 10, 0 );
+		}
+
+		// Last resort, for a theme that does render the course description
+		// through the main loop. On Tutor's own template this never fires,
+		// because that template never calls the_post() - which is exactly how
+		// the notice went missing in the first place.
 		add_filter( 'the_content', array( $this, 'prepend_notice' ), 20 );
+
 		add_shortcode( 'tlp_course_status', array( $this, 'shortcode' ) );
 	}
 
@@ -40,15 +69,48 @@ final class CourseLock {
 	}
 
 	/**
+	 * Echo the lock explanation where Tutor's course template invites it.
+	 *
+	 * Attached to every candidate in `HookMap::course_page_notice_actions()`.
+	 * Whichever of them the installed Tutor and the active theme actually reach
+	 * prints the notice; the rest are no-ops.
+	 */
+	public function render_notice(): void {
+		if ( $this->notice_handled || ! is_singular( $this->tutor->course_post_type() ) ) {
+			return;
+		}
+
+		// Claimed before the notice is built, so that a hook firing later in the
+		// same request cannot print a second copy even if the gate's answer
+		// changed underneath us.
+		$this->notice_handled = true;
+
+		$notice = $this->notice_for( $this->current_course_id() );
+
+		if ( '' === $notice ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markup built and escaped by templates/course/locked-notice.php.
+		echo $notice;
+	}
+
+	/**
 	 * Put the lock explanation at the top of a locked course page.
 	 *
 	 * @param mixed $content Post content.
 	 * @return mixed
 	 */
 	public function prepend_notice( $content ) {
+		if ( $this->notice_handled ) {
+			return $content;
+		}
+
 		if ( ! is_singular( $this->tutor->course_post_type() ) || ! in_the_loop() || ! is_main_query() ) {
 			return $content;
 		}
+
+		$this->notice_handled = true;
 
 		$notice = $this->notice_for( (int) get_the_ID() );
 
@@ -74,6 +136,19 @@ final class CourseLock {
 		}
 
 		return $this->notice_for( $course_id );
+	}
+
+	/**
+	 * The course this request is displaying.
+	 *
+	 * `get_the_ID()` is unreliable here: Tutor's single-course template renders
+	 * outside the main loop, so there is no "current post" to read. The queried
+	 * object is the course either way.
+	 */
+	private function current_course_id(): int {
+		$course_id = (int) get_queried_object_id();
+
+		return $course_id > 0 ? $course_id : (int) get_the_ID();
 	}
 
 	/**

@@ -37,6 +37,7 @@
         "test:unit": "phpunit --configuration phpunit.xml.dist",
         "test:integration": "phpunit --configuration phpunit-integration.xml.dist",
         "test:contract": "phpunit --configuration phpunit-integration.xml.dist --group contract",
+        "test:hooks": "phpunit --configuration phpunit-hooks.xml.dist",
         "test": [
             "@lint",
             "@test:unit"
@@ -47,6 +48,7 @@
     "scripts-descriptions": {
         "test:unit": "Domain logic only. Fast, no WordPress, no database.",
         "test:integration": "Real WordPress and real Tutor LMS. Needs install:wp and install:tutor first.",
-        "test:contract": "Just the tests that check our fixtures still agree with Tutor. Run this first when the integration suite goes red."
+        "test:contract": "Just the tests that check our fixtures still agree with Tutor. Run this first when the integration suite goes red.",
+        "test:hooks": "Checks every name in HookMap still exists in the installed Tutor LMS. Needs a Tutor checkout, not a database. CI runs it once per Tutor version."
     }
 }
