@@ -5,7 +5,7 @@
 | ชุด | รันด้วยอะไร | ใช้เวลา | ตอบคำถามอะไร |
 | --- | --- | --- | --- |
 | **Unit** | PHP อย่างเดียว ไม่มี WordPress ไม่มี DB | ~1 วินาที | ตรรกะถูกไหม (ALL/ANY/AT_LEAST, cycle detection) |
-| **Hook contract** | PHP + ซอร์ส Tutor LMS บนดิสก์ ไม่มี WordPress ไม่มี DB | <1 วินาที | ชื่อ hook ใน `HookMap` ยังมีอยู่จริงใน Tutor เวอร์ชันนี้ไหม |
+| **Hook contract** | PHP + ซอร์ส Tutor LMS บนดิสก์ ไม่มี WordPress ไม่มี DB | <1 วินาที | ชื่อ hook ใน `HookMap` ยังมีอยู่จริงใน Tutor เวอร์ชันนี้ไหม + ยังไม่มีชื่อ hook ของ Tutor หลุดไปอยู่นอก `HookMap` ใช่ไหม |
 | **Integration** | WordPress จริง + Tutor LMS จริง + MySQL | ~2–5 นาที | ตรรกะต่อสายกับข้อมูลจริงถูกไหม |
 
 กฎง่าย ๆ: ถ้า test ต้องการให้ WordPress โหลด มันคือ integration test
@@ -33,9 +33,15 @@ TUTOR_DIR="$PWD/.tutor/tutor" composer test:hooks
 มันหา Tutor ใต้ `WP_CORE_DIR` เอง
 
 ชุดนี้ **อ่านซอร์ส** ของ Tutor แล้วมองหา `do_action( 'ชื่อ'` / `apply_filters( 'ชื่อ'`
+(รวมถึง `wp_ajax_<ชื่อ>`, `tutor_action_<ชื่อ>` และ literal อย่าง meta key)
 ไม่ได้บูต WordPress การรันกับ Tutor หกเวอร์ชันจึงถูกพอที่จะทำทุก push
 สิ่งที่มันไม่ตอบ: hook ถูกยิงบนหน้าที่เราต้องการหรือเปล่า — อันนั้น
 `CourseLockNoticeTest` ในชุด integration ตอบ
+
+ในชุดเดียวกันมี `PluginHookSourceTest` ซึ่งอ่านซอร์ส **ของปลั๊กอินเราเอง** ไม่ต้องมี
+Tutor เลย มันปิดรอยรั่วที่ `HookContractTest` ปิดไม่ได้ คือชื่อที่ไม่เคยเข้ามาใน `HookMap`
+ตั้งแต่แรก (`PurchaseGuard` เคยผูก `tutor_before_checkout_process` ที่ Tutor ไม่เคยมี
+โดย CI เขียวตลอด) ดู `docs/tutor-hook-matrix.md`
 
 ### Integration
 
@@ -134,5 +140,10 @@ checkout + download + PHPUnit หนึ่งครั้ง
 
 - E2E ผ่านเบราว์เซอร์จริง (Playwright) — รอ v1.1 ที่มี Learning Path UI
 - ทดสอบ WooCommerce checkout เต็มรูปแบบ — ต้องติดตั้ง Woo ใน CI ด้วย
+  (การ **ตัดสิน** ของ `PurchaseGuard` ทดสอบได้โดยไม่ต้องมี Woo เพราะ reverse lookup
+  product → course เป็น meta query ล้วน ๆ ดู `PurchaseGuardTest`)
+- ทดสอบ checkout ของ Native eCommerce ตั้งแต่ต้นจนจบ — ต้องมี payment gateway
+  และ `Responder::deny()` จบ request ด้วย `exit` ซึ่ง test ไม่รอด
+  ที่ทดสอบได้คือ "การตัดสิน" (`refusals_for_posted_checkout()`) ไม่ใช่ "การตอบ"
 - Multisite
 - ทดสอบร่วมกับ Tutor LMS Pro (ไม่มีให้ดาวน์โหลดสาธารณะ)

@@ -18,9 +18,24 @@ use SpaceWork\TutorLearningPaths\Infrastructure\TutorLMS\HookMap;
  * costs a checkout and a download - no database, no WordPress test suite. That
  * cheapness is the whole reason the version axis is affordable.
  *
+ * Not every name is a hook and not every name is Tutor's, so the evidence comes
+ * in kinds - see the KIND_* constants. Two of them earn a word here:
+ *
+ * - A name that only exists from a given Tutor version (`tutor_can_purchase_course`,
+ *   4.0.0 and up) is expressed as a floor, and *below* the floor the contract
+ *   asserts the name is absent rather than skipping the leg. A skipped
+ *   assertion looks like coverage and is not.
+ * - A name owned by another project (WooCommerce) cannot be found in Tutor's
+ *   source at all, so it is pinned to the value that was read out of that
+ *   project. Editing it in `HookMap` fails here until it is edited here too,
+ *   which is the prompt to go and re-read that project's source.
+ *
  * What this test does *not* prove is that a hook is reached on the page we want
  * it on. `tests/Integration/CourseLockNoticeTest.php` covers that, against the
  * one Tutor version the integration matrix installs.
+ *
+ * Nor can it say anything about a name that never reached `HookMap` - that is
+ * `PluginHookSourceTest`, in this same suite.
  */
 final class HookContractTest extends TestCase {
 
@@ -35,9 +50,61 @@ final class HookContractTest extends TestCase {
 	private const KIND_AJAX = 'ajax';
 
 	/**
+	 * The name is one of Tutor's request actions, reached as `tutor_action_<name>`.
+	 */
+	private const KIND_TUTOR_ACTION = 'tutor_action';
+
+	/**
 	 * The name is a REST route fragment, matched against a requested route.
 	 */
 	private const KIND_REST = 'rest';
+
+	/**
+	 * The name is a Tutor-owned string the guards read rather than bind to - a
+	 * post meta key, a request field.
+	 */
+	private const KIND_LITERAL = 'literal';
+
+	/**
+	 * The name belongs to a project other than Tutor, so no amount of reading
+	 * Tutor's source can confirm it.
+	 */
+	private const KIND_EXTERNAL = 'external';
+
+	/**
+	 * Names owned by somebody other than Tutor, pinned to the value that was
+	 * read out of that project's source.
+	 *
+	 * Only WooCommerce so far. `woocommerce_add_to_cart_validation` is applied in
+	 * `includes/class-wc-form-handler.php` and `includes/class-wc-ajax.php`,
+	 * confirmed against woocommerce/woocommerce trunk (11.1.0-dev, August 2026);
+	 * WooCommerce has carried it since 1.x and does not rename public hooks
+	 * without a deprecation shim, which is why there is no WooCommerce version
+	 * axis in CI to match the Tutor one - the name is stable in a way Tutor's are
+	 * demonstrably not.
+	 *
+	 * Pinning is a change detector, and deliberately so: it means nobody can edit
+	 * the name in `HookMap` without editing it here too, and editing it here is
+	 * the prompt to go and check WooCommerce's source again.
+	 *
+	 * @var array<string, array{owner: string, names: string[]}>
+	 */
+	private const EXTERNAL_NAMES = array(
+		'woo_add_to_cart_filter' => array(
+			'owner' => 'WooCommerce',
+			'names' => array( 'woocommerce_add_to_cart_validation' ),
+		),
+	);
+
+	/**
+	 * The Tutor release that introduced the native purchase gate.
+	 *
+	 * `tutor_can_purchase_course` first appears in 4.0.0 (present in
+	 * v4.0.0-rc.2, absent from 3.9.12). Lower this if a 3.x build ever back-ports
+	 * it - `test_the_native_purchase_path_has_a_gate_on_every_supported_tutor`
+	 * will say so.
+	 */
+	private const PURCHASE_GATE_SINCE = '4.0.0';
 
 	private static ?TutorSource $tutor = null;
 
@@ -61,7 +128,11 @@ final class HookContractTest extends TestCase {
 	 * Adding an accessor to HookMap without adding it here fails
 	 * `test_every_hookmap_accessor_is_covered_by_this_contract`.
 	 *
-	 * @return array<string, array{0: string, 1: string}>
+	 * The optional third element is the first Tutor release that has the name.
+	 * Below it the contract asserts the name is *absent* rather than skipping,
+	 * because a skipped leg of the matrix carries no information at all.
+	 *
+	 * @return array<string, array{0: string, 1: string, 2?: string}>
 	 */
 	public static function accessors(): array {
 		return array(
@@ -69,8 +140,15 @@ final class HookContractTest extends TestCase {
 			'before enrol'         => array( 'before_enrol_actions', self::KIND_ACTION ),
 			'enrolment ajax'       => array( 'enrolment_ajax_actions', self::KIND_AJAX ),
 			'enrolment rest'       => array( 'enrolment_rest_fragments', self::KIND_REST ),
+			'enrolment data'       => array( 'enrolment_data_filters', self::KIND_ACTION ),
+			'after enrol'          => array( 'after_enrol_actions', self::KIND_ACTION ),
 			'course completed'     => array( 'course_completed_actions', self::KIND_ACTION ),
 			'course builder ready' => array( 'course_builder_loaded_action', self::KIND_ACTION ),
+			'woo add to cart'      => array( 'woo_add_to_cart_filter', self::KIND_EXTERNAL ),
+			'native purchase gate' => array( 'purchase_gate_filters', self::KIND_ACTION, self::PURCHASE_GATE_SINCE ),
+			'native checkout'      => array( 'native_checkout_actions', self::KIND_TUTOR_ACTION ),
+			'checkout object ids'  => array( 'checkout_object_ids_field', self::KIND_LITERAL ),
+			'course product meta'  => array( 'course_product_meta_key', self::KIND_LITERAL ),
 		);
 	}
 
@@ -79,7 +157,7 @@ final class HookContractTest extends TestCase {
 	 *
 	 * @dataProvider accessors
 	 */
-	public function test_the_installed_tutor_still_provides_at_least_one_candidate( string $accessor, string $kind ): void {
+	public function test_the_installed_tutor_still_provides_at_least_one_candidate( string $accessor, string $kind, string $since = '' ): void {
 		$candidates = self::candidates_for( $accessor );
 
 		$this->assertNotEmpty(
@@ -87,11 +165,89 @@ final class HookContractTest extends TestCase {
 			sprintf( 'HookMap::%s() returned nothing to check.', $accessor )
 		);
 
+		if ( self::KIND_EXTERNAL === $kind ) {
+			$this->assert_external_names_are_unchanged( $accessor, $candidates );
+
+			return;
+		}
+
 		$evidence = $this->evidence_for( $kind, $candidates );
+
+		if ( '' !== $since && ! $this->tutor_is_at_least( $since ) ) {
+			$this->assertSame(
+				array(),
+				array_filter( $evidence ),
+				$this->explain_unexpected_presence( $accessor, $since, $evidence )
+			);
+
+			return;
+		}
 
 		$this->assertNotEmpty(
 			array_filter( $evidence ),
 			$this->explain_failure( $accessor, $kind, $evidence )
+		);
+	}
+
+	/**
+	 * Both halves of the native purchase path, stated together.
+	 *
+	 * The two accessors involved are not alternatives that happen to overlap;
+	 * they cover different ranges of Tutor and the split is the whole point.
+	 * Tutor 4.0 asks `tutor_can_purchase_course` before it will put a course in a
+	 * cart, render the checkout page or take a payment. Tutor 3.x asks nothing,
+	 * so the only thing left to guard there is the checkout submit itself.
+	 *
+	 * Asserting the 3.x absence rather than shrugging at it is what stops
+	 * somebody "fixing" a red 3.0.2 leg by deleting the older gate.
+	 */
+	public function test_the_native_purchase_path_has_a_gate_on_every_supported_tutor(): void {
+		$submit = array_filter(
+			$this->evidence_for( self::KIND_TUTOR_ACTION, HookMap::native_checkout_actions() )
+		);
+
+		$this->assertNotEmpty(
+			$submit,
+			sprintf(
+				"Tutor %s wires none of HookMap::native_checkout_actions() as tutor_action_<name>.\n"
+				. 'That leaves the native checkout with no gate at all on this build - the exact hole '
+				. 'the tutor_before_checkout_process bug left open. Find the name Tutor now dispatches '
+				. 'the checkout submit under before touching anything else.',
+				self::tutor()->version()
+			)
+		);
+
+		$gate = array_filter(
+			$this->evidence_for( self::KIND_ACTION, HookMap::purchase_gate_filters() )
+		);
+
+		if ( $this->tutor_is_at_least( self::PURCHASE_GATE_SINCE ) ) {
+			$this->assertNotEmpty(
+				$gate,
+				sprintf(
+					"Tutor %s is %s or newer but declares none of HookMap::purchase_gate_filters().\n"
+					. 'Tutor dropped or renamed its purchase gate. Until it is replaced the native path '
+					. 'falls back to refusing at the checkout submit, which still works but reports a '
+					. 'generic failure instead of explaining which prerequisite is missing.',
+					self::tutor()->version(),
+					self::PURCHASE_GATE_SINCE
+				)
+			);
+
+			return;
+		}
+
+		$this->assertSame(
+			array(),
+			$gate,
+			sprintf(
+				"Tutor %s predates %s and should not have a purchase gate, but one of\n"
+				. "HookMap::purchase_gate_filters() is declared in its source.\n"
+				. 'Good news, not bad: lower HookContractTest::PURCHASE_GATE_SINCE to the version that '
+				. 'back-ported it and record the new floor in docs/tutor-hook-matrix.md.',
+				self::tutor()->version(),
+				self::PURCHASE_GATE_SINCE
+			)
 		);
 	}
 
@@ -212,6 +368,14 @@ final class HookContractTest extends TestCase {
 					$evidence[ $candidate ] = self::tutor()->registers_ajax_action( $candidate );
 					break;
 
+				case self::KIND_TUTOR_ACTION:
+					$evidence[ $candidate ] = self::tutor()->registers_tutor_action( $candidate );
+					break;
+
+				case self::KIND_LITERAL:
+					$evidence[ $candidate ] = self::tutor()->uses_literal( $candidate );
+					break;
+
 				case self::KIND_REST:
 					// A route fragment cannot be found in source the way a hook
 					// name can: `rest_pre_dispatch` matches it against the route
@@ -277,12 +441,99 @@ final class HookContractTest extends TestCase {
 			case self::KIND_AJAX:
 				return 'an admin-ajax action reachable as wp_ajax_<name>';
 
+			case self::KIND_TUTOR_ACTION:
+				return 'a Tutor request action reachable as tutor_action_<name>';
+
 			case self::KIND_REST:
 				return 'a REST namespace Tutor registers';
+
+			case self::KIND_LITERAL:
+				return 'a quoted string literal in Tutor source';
 
 			default:
 				return 'a name declared with do_action() or apply_filters()';
 		}
+	}
+
+	/**
+	 * Hold a name owned by another project to the value this contract pins.
+	 *
+	 * @param string[] $candidates Names HookMap returned.
+	 */
+	private function assert_external_names_are_unchanged( string $accessor, array $candidates ): void {
+		$this->assertArrayHasKey(
+			$accessor,
+			self::EXTERNAL_NAMES,
+			sprintf(
+				"HookMap::%s() is marked as owned by another project, but HookContractTest::EXTERNAL_NAMES\n"
+				. 'does not say which one or what the name should be.',
+				$accessor
+			)
+		);
+
+		$pinned = self::EXTERNAL_NAMES[ $accessor ];
+
+		$this->assertSame(
+			$pinned['names'],
+			$candidates,
+			sprintf(
+				"HookMap::%s() no longer matches the name pinned for %s.\n\n"
+				. "Pinned:   %s\n"
+				. "HookMap:  %s\n\n"
+				. "Reading Tutor's source cannot settle this, because %s owns the name. Confirm the new\n"
+				. "one against %s's source, update HookContractTest::EXTERNAL_NAMES to match, and record\n"
+				. 'what you checked it against in docs/tutor-hook-matrix.md.',
+				$accessor,
+				$pinned['owner'],
+				implode( ', ', $pinned['names'] ),
+				implode( ', ', $candidates ),
+				$pinned['owner'],
+				$pinned['owner']
+			)
+		);
+	}
+
+	/**
+	 * Whether the Tutor under test is at least a given version.
+	 *
+	 * @throws \RuntimeException When the installed Tutor does not state a version.
+	 */
+	private function tutor_is_at_least( string $floor ): bool {
+		$version = self::tutor()->version();
+
+		if ( 'unknown' === $version ) {
+			throw new \RuntimeException(
+				// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- A CLI message, never rendered to a browser.
+				'Cannot decide whether ' . self::tutor()->dir() . ' is at least Tutor ' . $floor
+				. ' because its plugin header states no version. Fix that before trusting any '
+				. 'version-aware expectation in this suite.'
+			);
+		}
+
+		return version_compare( $version, $floor, '>=' );
+	}
+
+	/**
+	 * Turn "we said this version would not have it, and it does" into advice.
+	 *
+	 * @param array<string, string> $evidence Candidate => `path:line` or ''.
+	 */
+	private function explain_unexpected_presence( string $accessor, string $since, array $evidence ): string {
+		$lines = array();
+
+		foreach ( array_filter( $evidence ) as $candidate => $where ) {
+			$lines[] = sprintf( '  - %s: %s', $candidate, $where );
+		}
+
+		return sprintf(
+			"HookMap::%s() is documented as existing only from Tutor %s, but Tutor %s already has it:\n%s\n\n"
+			. "That is a widening, not a break. Lower the floor for this accessor in\n"
+			. 'HookContractTest::accessors() and update docs/tutor-hook-matrix.md.',
+			$accessor,
+			$since,
+			self::tutor()->version(),
+			implode( "\n", $lines )
+		);
 	}
 
 	private static function tutor(): TutorSource {

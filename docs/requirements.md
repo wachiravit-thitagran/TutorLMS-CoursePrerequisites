@@ -26,7 +26,7 @@
 | ✅ | Access Gate กลาง + 8 context |
 | ✅ | บล็อก enrollment: form, AJAX, REST, enroll_data |
 | ✅ | บล็อกเปิด Lesson / Quiz / Assignment ผ่าน URL ตรง |
-| ✅ | บล็อกการซื้อ (WooCommerce + โครง Native eCommerce) |
+| ✅ | บล็อกการซื้อ: WooCommerce add-to-cart + Native eCommerce (ด่านซื้อของ Tutor ≥ 4.0 และ submit checkout ทุกเวอร์ชัน) |
 | ✅ | โหมดการมองเห็น 5 แบบ |
 | ✅ | Circular dependency detection (DFS แบบ iterative) |
 | ✅ | Tutor 4.x Course Builder / metabox editor + AJAX course search ที่กรองตามสิทธิ์ |

@@ -36,7 +36,9 @@ final class EnrollmentGuard {
 		add_filter( 'rest_pre_dispatch', array( $this, 'guard_rest' ), 10, 3 );
 
 		// Last line of defence: refuse to write the enrolment record itself.
-		add_filter( 'tutor_enroll_data', array( $this, 'guard_enroll_data' ), 1, 2 );
+		foreach ( HookMap::enrolment_data_filters() as $filter ) {
+			add_filter( (string) $filter, array( $this, 'guard_enroll_data' ), 1, 2 );
+		}
 	}
 
 	/**

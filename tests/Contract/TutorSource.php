@@ -156,12 +156,42 @@ final class TutorSource {
 	}
 
 	/**
+	 * Where Tutor wires one of its own request actions, if it does.
+	 *
+	 * Tutor dispatches `do_action( 'tutor_action_' . $tutor_action )` from a
+	 * request field, so the composed name never appears in a `do_action()` call
+	 * and `declares()` cannot see it. What does appear is the `add_action(
+	 * 'tutor_action_<name>', ... )` that Tutor's own handler registers, which is
+	 * the evidence that the action is dispatched and handled - exactly the same
+	 * reasoning as `registers_ajax_action()`.
+	 *
+	 * @return string Relative `path:line`, or ''.
+	 */
+	public function registers_tutor_action( string $action ): string {
+		return $this->first_match( '/\btutor_action_' . preg_quote( $action, '/' ) . '\b/' );
+	}
+
+	/**
 	 * Where Tutor claims a REST namespace, if it does.
 	 *
 	 * @return string Relative `path:line`, or ''.
 	 */
 	public function registers_rest_namespace( string $rest_namespace ): string {
-		return $this->first_match( '/([\'"])' . preg_quote( $rest_namespace, '/' ) . '\1/' );
+		return $this->uses_literal( $rest_namespace );
+	}
+
+	/**
+	 * Where Tutor writes a quoted string literal, if it does.
+	 *
+	 * The evidence available for a name that is neither a hook nor an endpoint -
+	 * a post meta key, a request field. Weaker than `declares()`, because a
+	 * literal can appear for an unrelated reason, but it does catch the change
+	 * that matters: a key Tutor no longer uses under that name at all.
+	 *
+	 * @return string Relative `path:line`, or ''.
+	 */
+	public function uses_literal( string $literal ): string {
+		return $this->first_match( '/([\'"])' . preg_quote( $literal, '/' ) . '\1/' );
 	}
 
 	/**

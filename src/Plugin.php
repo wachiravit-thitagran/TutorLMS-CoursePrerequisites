@@ -19,6 +19,7 @@ use SpaceWork\TutorLearningPaths\Infrastructure\Cache\AccessCache;
 use SpaceWork\TutorLearningPaths\Infrastructure\Database\CourseRuleRepository;
 use SpaceWork\TutorLearningPaths\Infrastructure\Database\Migrator;
 use SpaceWork\TutorLearningPaths\Infrastructure\Database\Schema;
+use SpaceWork\TutorLearningPaths\Infrastructure\TutorLMS\HookMap;
 use SpaceWork\TutorLearningPaths\Infrastructure\TutorLMS\TutorAdapter;
 use SpaceWork\TutorLearningPaths\Infrastructure\TutorLMS\TutorAdapterInterface;
 use SpaceWork\TutorLearningPaths\Support\Settings;
@@ -162,8 +163,10 @@ final class Plugin {
 		};
 
 		// Tutor fires these with ( $course_id, $user_id ) in the builds we target.
-		foreach ( array( 'tutor_course_complete_after', 'tutor_course_completed', 'tutor_after_enroll' ) as $hook ) {
-			add_action( $hook, $invalidate, 10, 2 );
+		$hooks = array_merge( HookMap::course_completed_actions(), HookMap::after_enrol_actions() );
+
+		foreach ( $hooks as $hook ) {
+			add_action( (string) $hook, $invalidate, 10, 2 );
 		}
 
 		// A deleted course must not leave dangling rules behind.
