@@ -68,6 +68,7 @@ add_action(
 	'plugins_loaded',
 	static function (): void {
 		\SpaceWork\TutorLearningPaths\Plugin::instance()->boot();
+		\SpaceWork\TutorLearningPaths\MCP::register();
 	},
 	20
 );
