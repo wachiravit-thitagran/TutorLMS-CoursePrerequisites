@@ -36,7 +36,7 @@ final class MCP {
 			'tutorlms-prerequisites',
 			array(
 				'label'       => 'Tutor Learning Paths',
-				'description' => 'Course prerequisites and access evaluation abilities.',
+				'description' => 'Course prerequisite relationships, dependency information, and learner access evaluation.',
 			)
 		);
 	}
@@ -49,7 +49,7 @@ final class MCP {
 			'tutorlms-prerequisites/check-access',
 			array(
 				'label'               => 'Check Course Access',
-				'description'         => 'Evaluate whether a learner may access a course in a specific context.',
+				'description'         => 'Evaluates whether a learner satisfies the prerequisites required to access a course in the requested context.',
 				'category'            => 'tutorlms-prerequisites',
 				'input_schema'        => array(
 					'type'       => 'object',
@@ -79,7 +79,7 @@ final class MCP {
 			'tutorlms-prerequisites/get-prerequisites',
 			array(
 				'label'               => 'Get Course Prerequisites',
-				'description'         => 'Return course IDs required before a course.',
+				'description'         => 'Retrieves the courses that must be completed or satisfied before the specified course.',
 				'category'            => 'tutorlms-prerequisites',
 				'input_schema'        => self::course_schema(),
 				'execute_callback'    => static function ( array $input ): array {
@@ -101,7 +101,7 @@ final class MCP {
 			'tutorlms-prerequisites/get-dependent-courses',
 			array(
 				'label'               => 'Get Dependent Courses',
-				'description'         => 'Return courses that depend on the supplied course.',
+				'description'         => 'Retrieves courses whose prerequisite rules depend on the specified course.',
 				'category'            => 'tutorlms-prerequisites',
 				'input_schema'        => self::course_schema(),
 				'execute_callback'    => static function ( array $input ): array {
@@ -123,7 +123,7 @@ final class MCP {
 			'tutorlms-prerequisites/flush-access-cache',
 			array(
 				'label'               => 'Flush Prerequisite Access Cache',
-				'description'         => 'Flush cached course access decisions for one learner or the entire site.',
+				'description'         => 'Clears cached prerequisite access decisions for a learner, selected courses, or all applicable cached decisions.',
 				'category'            => 'tutorlms-prerequisites',
 				'input_schema'        => array(
 					'type'       => 'object',
