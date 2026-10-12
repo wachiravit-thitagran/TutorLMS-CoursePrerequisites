@@ -32,6 +32,19 @@ defined( 'ABSPATH' ) || exit;
 final class HookMap {
 
 	/**
+	 * Tutor's entry box applies these filters around the free-enroll and
+	 * purchasable actions. Keep frontend presentation hooks here, alongside
+	 * the server-side guards, so CI verifies them against Tutor versions.
+	 */
+	public static function free_course_entry_filter(): string {
+		return (string) apply_filters( 'tlp_hook_free_course_entry', 'tutor/course/single/entry-box/free' );
+	}
+
+	public static function purchasable_course_entry_filter(): string {
+		return (string) apply_filters( 'tlp_hook_purchasable_course_entry', 'tutor/course/single/entry-box/purchasable' );
+	}
+
+	/**
 	 * Actions fired before Tutor creates an enrolment.
 	 *
 	 * Several are listed because Tutor has used more than one over its life and
