@@ -59,8 +59,8 @@ final class CourseLock {
 
 		// Tutor and BIA Theme both pass their course entry-card HTML through
 		// these filters. Keep enrollment decisions in AccessGate, not in the theme.
-		add_filter( 'tutor/course/single/entry-box/free', array( $this, 'filter_free_enrollment' ), 20, 2 );
-		add_filter( 'tutor/course/single/entry-box/purchasable', array( $this, 'filter_purchasable_enrollment' ), 20, 2 );
+		add_filter( HookMap::free_course_entry_filter(), array( $this, 'filter_free_enrollment' ), 20, 2 );
+		add_filter( HookMap::purchasable_course_entry_filter(), array( $this, 'filter_purchasable_enrollment' ), 20, 2 );
 
 		add_shortcode( 'tlp_course_status', array( $this, 'shortcode' ) );
 	}
