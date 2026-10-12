@@ -137,6 +137,8 @@ final class HookContractTest extends TestCase {
 	public static function accessors(): array {
 		return array(
 			'course page notice'   => array( 'course_page_notice_actions', self::KIND_ACTION ),
+			'free enrollment card' => array( 'free_course_entry_filter', self::KIND_ACTION ),
+			'paid enrollment card' => array( 'purchasable_course_entry_filter', self::KIND_ACTION ),
 			'before enrol'         => array( 'before_enrol_actions', self::KIND_ACTION ),
 			'enrolment ajax'       => array( 'enrolment_ajax_actions', self::KIND_AJAX ),
 			'enrolment rest'       => array( 'enrolment_rest_fragments', self::KIND_REST ),

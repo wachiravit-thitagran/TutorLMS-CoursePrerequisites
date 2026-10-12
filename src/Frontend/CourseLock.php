@@ -57,6 +57,11 @@ final class CourseLock {
 		// the notice went missing in the first place.
 		add_filter( 'the_content', array( $this, 'prepend_notice' ), 20 );
 
+		// Tutor and BIA Theme both pass their course entry-card HTML through
+		// these filters. Keep enrollment decisions in AccessGate, not in the theme.
+		add_filter( HookMap::free_course_entry_filter(), array( $this, 'filter_free_enrollment' ), 20, 2 );
+		add_filter( HookMap::purchasable_course_entry_filter(), array( $this, 'filter_purchasable_enrollment' ), 20, 2 );
+
 		add_shortcode( 'tlp_course_status', array( $this, 'shortcode' ) );
 	}
 
@@ -66,6 +71,52 @@ final class CourseLock {
 		}
 
 		wp_enqueue_style( 'tlp-frontend', TLP_URL . 'assets/css/frontend.css', array(), TLP_VERSION );
+	}
+
+	/**
+	 * Replace the free-course enrollment form with a disabled control when the
+	 * canonical prerequisite gate refuses enrollment. Nothing is posted.
+	 *
+	 * @param mixed $markup Existing entry-card markup.
+	 * @param mixed $course_id Tutor course ID.
+	 */
+	public function filter_free_enrollment( $markup, $course_id = 0 ): string {
+		return $this->locked_entry_box( (string) $markup, (int) $course_id, AccessContext::Enroll, true );
+	}
+
+	/**
+	 * Block the purchase CTA only when purchase itself is not permitted.
+	 * Deliberately preserve the Purchasable-in-advance visibility option.
+	 *
+	 * @param mixed $markup Existing entry-card markup.
+	 * @param mixed $course_id Tutor course ID.
+	 */
+	public function filter_purchasable_enrollment( $markup, $course_id = 0 ): string {
+		return $this->locked_entry_box( (string) $markup, (int) $course_id, AccessContext::Purchase, false );
+	}
+
+	/**
+	 * Single source of truth for deciding whether the Tutor action is offered.
+	 * The server-side EnrollmentGuard and PurchaseGuard remain authoritative.
+	 */
+	private function locked_entry_box(
+		string $markup,
+		int $course_id,
+		AccessContext $context,
+		bool $show_free_price
+	): string {
+		if ( $course_id <= 0 ) {
+			$course_id = $this->current_course_id();
+		}
+
+		if ( $course_id <= 0 || $this->gate->allows( get_current_user_id(), $course_id, $context ) ) {
+			return $markup;
+		}
+
+		return Templates::render(
+			'course/locked-entry-box.php',
+			array( 'show_free_price' => $show_free_price )
+		);
 	}
 
 	/**
