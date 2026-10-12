@@ -1,0 +1,38 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Tutor Learning Paths\n"
+"Language: th\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "%1$d of %2$d requirements met"
+msgstr "ผ่านเงื่อนไขแล้ว %1$d จาก %2$d รายการ"
+
+msgid "Complete \"%s\" first."
+msgstr "กรุณาเรียน \"%s\" ให้สำเร็จก่อน"
+
+msgid "Complete the required courses to enroll."
+msgstr "กรุณาเรียนคอร์สที่กำหนดให้สำเร็จก่อนลงทะเบียน"
+
+msgid "Completed"
+msgstr "สำเร็จแล้ว"
+
+msgid "Course locked"
+msgstr "คอร์สยังถูกล็อก"
+
+msgid "Enrollment unavailable"
+msgstr "ยังไม่สามารถลงทะเบียนได้"
+
+msgid "Not completed yet"
+msgstr "ยังไม่สำเร็จ"
+
+msgid "Sign in to check your progress."
+msgstr "กรุณาเข้าสู่ระบบเพื่อตรวจสอบความคืบหน้า"
+
+msgid "This course is not open to you yet. Finish the required courses to unlock it."
+msgstr "คอร์สนี้ยังไม่เปิดให้เข้าเรียน กรุณาเรียนคอร์สที่กำหนดให้สำเร็จก่อน"
+
+msgid "You need to complete the required courses first."
+msgstr "กรุณาเรียนคอร์สที่กำหนดให้สำเร็จก่อน"
