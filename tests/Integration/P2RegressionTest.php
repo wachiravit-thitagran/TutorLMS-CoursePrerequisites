@@ -107,6 +107,17 @@ final class P2RegressionTest extends IntegrationTestCase {
 		$this->assertSame( array(), tlp_get_course_prerequisites( $b ) );
 		$this->assertSame( array(), tlp_get_dependent_courses( $a ) );
 	}
+	public function test_ability_permission_callback_enforces_visibility_without_the_registry(): void {
+		[$private, $published] = $this->seeder->courses( 2 );
+		wp_update_post( array( 'ID' => $private, 'post_status' => 'private' ) );
+		$user = $this->seeder->student();
+		wp_set_current_user( $user );
+		$this->assertFalse( \SpaceWork\TutorLearningPaths\MCP::can_read_user( array( 'course_id' => $private, 'user_id' => $user ) ) );
+		$this->assertTrue( \SpaceWork\TutorLearningPaths\MCP::can_read_user( array( 'course_id' => $published, 'user_id' => $user ) ) );
+		$this->assertFalse( \SpaceWork\TutorLearningPaths\MCP::can_read_user( array( 'course_id' => $published, 'user_id' => $this->seeder->student() ) ) );
+		wp_set_current_user( $this->seeder->administrator() );
+		$this->assertTrue( \SpaceWork\TutorLearningPaths\MCP::can_read_user( array( 'course_id' => $private, 'user_id' => $user ) ) );
+	}
 	public function test_mixed_search_omits_hidden_course_only(): void {
 		[$a, $b] = $this->seeder->courses( 2 );
 		$this->seeder->require_courses( $b, array( $a ), array( 'visibility' => 'hidden' ) );
@@ -156,6 +167,9 @@ final class P2RegressionTest extends IntegrationTestCase {
 		$this->assertFalse( Plugin::instance()->dependencies()->graph()->has_cycle() );
 	}
 	public function test_registered_graph_abilities_enforce_course_visibility(): void {
+		if ( ! function_exists( 'wp_get_ability' ) ) {
+			$this->markTestSkipped( 'The optional WordPress Abilities API is unavailable on this WordPress version.' );
+		}
 		[$a, $b] = $this->seeder->courses( 2 );
 		$this->seeder->require_courses( $b, array( $a ) );
 		wp_update_post(
