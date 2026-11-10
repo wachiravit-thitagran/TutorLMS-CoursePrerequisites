@@ -23,6 +23,7 @@ final class EnrollmentGuard {
 	public function __construct( private readonly AccessGate $gate ) {}
 
 	public function register(): void {
+		add_filter( 'tcb/enrollment/can_complete', array( $this, 'can_complete_bundle_enrollment' ), 10, 3 );
 		foreach ( HookMap::before_enrol_actions() as $hook ) {
 			add_action( $hook, array( $this, 'guard_action' ), 1, 1 );
 		}
@@ -39,6 +40,12 @@ final class EnrollmentGuard {
 		foreach ( HookMap::enrolment_data_filters() as $filter ) {
 			add_filter( (string) $filter, array( $this, 'guard_enroll_data' ), 1, 2 );
 		}
+	}
+
+	/** Bundle ownership must not promote a prerequisite hold to content access. */
+	public function can_complete_bundle_enrollment( bool $allowed, int $course_id, int $user_id ): bool {
+		return $allowed && $course_id > 0 && $user_id > 0
+			&& $this->gate->allows( $user_id, $course_id, AccessContext::Enroll );
 	}
 
 	/**

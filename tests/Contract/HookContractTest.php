@@ -90,6 +90,7 @@ final class HookContractTest extends TestCase {
 	 * @var array<string, array{owner: string, names: string[]}>
 	 */
 	private const EXTERNAL_NAMES = array(
+		'learner_cleanup_completed_action' => array( 'owner' => 'TutorUserCleanup', 'names' => array( 'tutor_user_cleanup_after_user' ) ),
 		'woo_add_to_cart_filter' => array(
 			'owner' => 'WooCommerce',
 			'names' => array( 'woocommerce_add_to_cart_validation' ),
@@ -136,13 +137,18 @@ final class HookContractTest extends TestCase {
 	 */
 	public static function accessors(): array {
 		return array(
+			'learner cleanup' => array( 'learner_cleanup_completed_action', self::KIND_EXTERNAL ),
 			'course page notice'   => array( 'course_page_notice_actions', self::KIND_ACTION ),
 			'free enrollment card' => array( 'free_course_entry_filter', self::KIND_ACTION ),
 			'paid enrollment card' => array( 'purchasable_course_entry_filter', self::KIND_ACTION ),
 			'before enrol'         => array( 'before_enrol_actions', self::KIND_ACTION ),
+			'lesson content ajax'  => array( 'lesson_content_ajax_actions', self::KIND_AJAX ),
 			'enrolment ajax'       => array( 'enrolment_ajax_actions', self::KIND_AJAX ),
 			'enrolment rest'       => array( 'enrolment_rest_fragments', self::KIND_REST ),
 			'enrolment data'       => array( 'enrolment_data_filters', self::KIND_ACTION ),
+			'enrollment revoked'   => array( 'enrollment_revoked_actions', self::KIND_ACTION ),
+			'enrollment status'    => array( 'enrollment_status_changed_action', self::KIND_ACTION ),
+			'progress reset'       => array( 'course_progress_reset_action', self::KIND_ACTION ),
 			'after enrol'          => array( 'after_enrol_actions', self::KIND_ACTION ),
 			'course completed'     => array( 'course_completed_actions', self::KIND_ACTION ),
 			'course builder ready' => array( 'course_builder_loaded_action', self::KIND_ACTION ),

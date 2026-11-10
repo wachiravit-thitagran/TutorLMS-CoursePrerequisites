@@ -51,10 +51,13 @@ if ( ! function_exists( 'tlp_get_course_prerequisites' ) ) {
 	 * @return int[]
 	 */
 	function tlp_get_course_prerequisites( int $course_id ): array {
+		if ( ! tlp_can_inspect_course( $course_id ) ) {
+			return array();
+		}
 		$sources = array();
 
 		foreach ( Plugin::instance()->rules()->for_course( $course_id ) as $rule ) {
-			if ( $rule->source_id > 0 ) {
+			if ( $rule->source_id > 0 && tlp_can_inspect_course( $rule->source_id ) ) {
 				$sources[] = $rule->source_id;
 			}
 		}
@@ -70,7 +73,10 @@ if ( ! function_exists( 'tlp_get_dependent_courses' ) ) {
 	 * @return int[]
 	 */
 	function tlp_get_dependent_courses( int $course_id ): array {
-		return Plugin::instance()->rules()->dependents_of( $course_id );
+		if ( ! tlp_can_inspect_course( $course_id ) ) {
+			return array();
+		}
+		return array_values( array_filter( Plugin::instance()->rules()->dependents_of( $course_id ), 'tlp_can_inspect_course' ) );
 	}
 }
 
@@ -90,4 +96,21 @@ if ( ! function_exists( 'tlp_flush_access_cache' ) ) {
 
 		AccessCache::flush_user( $user_id, $course_ids );
 	}
+}
+
+/** Whether graph metadata for this course is visible to the caller. */
+function tlp_can_inspect_course( int $course_id ): bool {
+	$post = get_post( $course_id );
+	if ( ! $post instanceof \WP_Post || $post->post_type !== Plugin::instance()->tutor()->course_post_type() ) {
+		return false;
+	}
+	if ( current_user_can( 'manage_options' ) || current_user_can( 'edit_post', $course_id ) ) {
+		return true;
+	}
+	if ( 'publish' !== $post->post_status && ! current_user_can( 'read_post', $course_id ) ) {
+		return false;
+	}
+	$config = \SpaceWork\TutorLearningPaths\Domain\Course\CourseConfig::for_course( $course_id );
+	return ! \SpaceWork\TutorLearningPaths\Support\Visibility::hides_from_listing( $config->visibility )
+		|| Plugin::instance()->gate()->allows( get_current_user_id(), $course_id, AccessContext::View );
 }

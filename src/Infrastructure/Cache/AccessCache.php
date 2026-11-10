@@ -35,7 +35,7 @@ final class AccessCache {
 			$user_id,
 			$course_id,
 			$context,
-			self::rules_version()
+			self::rules_version() . ':' . (string) get_user_meta( $user_id, '_tlp_access_generation', true )
 		);
 	}
 
@@ -109,6 +109,10 @@ final class AccessCache {
 	 * @param int[] $course_ids Courses to clear, or empty for none.
 	 */
 	public static function flush_user( int $user_id, array $course_ids = array() ): void {
+		if ( array() === $course_ids ) {
+			update_user_meta( $user_id, '_tlp_access_generation', wp_generate_uuid4() );
+		}
+
 		foreach ( $course_ids as $course_id ) {
 			// Driven off the enum so a new context cannot be added without its
 			// cache entries also being cleared.

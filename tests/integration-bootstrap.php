@@ -67,7 +67,10 @@ tests_add_filter(
 	static function (): void {
 		if ( function_exists( 'tutor_utils' ) && class_exists( '\TUTOR\Tutor' ) ) {
 			// Tutor creates its own tables on activation.
-			do_action( 'activate_tutor/tutor.php' );
+			global $wpdb;
+			$previous = $wpdb->suppress_errors( true );
+			\TUTOR\Tutor::tutor_activate();
+			$wpdb->suppress_errors( $previous );
 		}
 
 		\SpaceWork\TutorLearningPaths\Activation::run();

@@ -7,6 +7,7 @@ use SpaceWork\TutorLearningPaths\Application\AccessGate;
 use SpaceWork\TutorLearningPaths\Domain\Access\AccessContext;
 use SpaceWork\TutorLearningPaths\Infrastructure\Database\ActivityLog;
 use SpaceWork\TutorLearningPaths\Infrastructure\TutorLMS\TutorAdapterInterface;
+use SpaceWork\TutorLearningPaths\Infrastructure\TutorLMS\HookMap;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -26,6 +27,26 @@ final class ContentAccessGuard {
 
 	public function register(): void {
 		add_action( 'template_redirect', array( $this, 'guard_request' ), 1 );
+		foreach ( HookMap::lesson_content_ajax_actions() as $action ) {
+			add_action( 'wp_ajax_' . $action, array( $this, 'guard_ajax' ), 0 );
+			add_action( 'wp_ajax_nopriv_' . $action, array( $this, 'guard_ajax' ), 0 );
+		}
+	}
+
+	/** Resolve the course from Tutor's lesson field, never caller course IDs. */
+	public function guard_ajax(): void {
+		// Tutor validates its own nonce; this guard only narrows access.
+		$lesson_id = isset( $_POST['lesson_id'] ) ? absint( wp_unslash( $_POST['lesson_id'] ) ) : 0;
+		$course_id = $this->tutor->resolve_course_id( $lesson_id );
+		if ( $course_id <= 0 ) {
+			return;
+		}
+		$user_id = get_current_user_id();
+		$result = $this->gate->evaluate( $user_id, $course_id, AccessContext::Content );
+		if ( ! $result->allowed ) {
+			ActivityLog::record( ActivityLog::ACCESS_DENIED, $user_id, $course_id, $result->reason_code, array( 'stage' => 'lesson_ajax' ) );
+			wp_send_json_error( $result->to_array(), 403 );
+		}
 	}
 
 	public function guard_request(): void {

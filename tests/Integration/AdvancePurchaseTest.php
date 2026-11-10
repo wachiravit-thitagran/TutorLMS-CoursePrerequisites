@@ -14,6 +14,16 @@ use SpaceWork\TutorLearningPaths\Support\Visibility;
  */
 final class AdvancePurchaseTest extends IntegrationTestCase {
 
+	public function test_bundle_completion_policy_uses_enroll_rules_even_for_existing_enrollments(): void {
+		$world = $this->scenarios->linear_chain( 2 );
+		$student = $world['student'];
+		$course = $world['courses'][1];
+		$this->seeder->require_courses( $course, array( $world['courses'][0] ), array( 'visibility' => Visibility::PURCHASABLE ) );
+		$this->assertFalse( apply_filters( 'tcb/enrollment/can_complete', true, $course, $student ) );
+		$this->seeder->complete( $student, $world['courses'][0] );
+		$this->assertTrue( apply_filters( 'tcb/enrollment/can_complete', true, $course, $student ) );
+	}
+
 	public function test_pending_purchase_enrollment_is_preserved_for_a_purchasable_locked_course(): void {
 		$world   = $this->scenarios->linear_chain( 2 );
 		$student = $world['student'];
