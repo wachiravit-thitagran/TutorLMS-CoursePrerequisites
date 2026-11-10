@@ -103,10 +103,6 @@ final class TutorAdapter implements TutorAdapterInterface {
 		return $this->memo(
 			"enrolled:{$user_id}:{$course_id}",
 			function () use ( $user_id, $course_id ): bool {
-				if ( function_exists( 'tutor_utils' ) && method_exists( tutor_utils(), 'is_enrolled' ) ) {
-					return (bool) tutor_utils()->is_enrolled( $course_id, $user_id );
-				}
-
 				global $wpdb;
 
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery

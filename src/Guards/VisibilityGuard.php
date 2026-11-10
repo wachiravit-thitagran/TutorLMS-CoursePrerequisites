@@ -132,11 +132,11 @@ final class VisibilityGuard {
 		}
 
 		if ( is_string( $post_type ) && '' !== $post_type ) {
-			return $course === $post_type;
+			return $course === $post_type || 'any' === $post_type;
 		}
 
 		// Untyped queries on a course archive or taxonomy still target courses.
-		return $query->is_post_type_archive( $course ) || $query->is_tax( array( 'course-category', 'course-tag' ) );
+		return $query->is_search() || $query->is_post_type_archive( $course ) || $query->is_tax( array( 'course-category', 'course-tag' ) );
 	}
 
 	/**

@@ -162,12 +162,72 @@ final class Plugin {
 			AccessCache::flush_user( $user_id, $affected );
 		};
 
-		// Tutor fires these with ( $course_id, $user_id ) in the builds we target.
-		$hooks = array_merge( HookMap::course_completed_actions(), HookMap::after_enrol_actions() );
-
-		foreach ( $hooks as $hook ) {
+		foreach ( array_merge( HookMap::course_completed_actions(), HookMap::enrollment_revoked_actions(), array( HookMap::course_progress_reset_action() ) ) as $hook ) {
 			add_action( (string) $hook, $invalidate, 10, 2 );
 		}
+
+		add_action(
+			HookMap::learner_cleanup_completed_action(),
+			static function ( $user_id, $counts, $dry_run ): void {
+				if ( ! $dry_run && (int) $user_id > 0 ) {
+					AccessCache::flush_user( (int) $user_id );
+				}
+			},
+			10,
+			3
+		);
+
+		// Tutor's after-enrolled payload is (course ID, enrollment post ID).
+		foreach ( HookMap::after_enrol_actions() as $hook ) {
+			add_action(
+				(string) $hook,
+				static function ( $course_id, $enrollment_id ) use ( $invalidate ): void {
+					$post = get_post( (int) $enrollment_id );
+					if ( $post instanceof \WP_Post && 'tutor_enrolled' === $post->post_type ) {
+						$invalidate( (int) $course_id, (int) $post->post_author );
+					}
+				},
+				10,
+				2
+			);
+		}
+
+		$invalidate_enrollment = static function ( $post_id, $post = null ) use ( $invalidate ): void {
+			$post = $post instanceof \WP_Post ? $post : get_post( (int) $post_id );
+			if ( $post instanceof \WP_Post && 'tutor_enrolled' === $post->post_type ) {
+				$invalidate( (int) $post->post_parent, (int) $post->post_author );
+			}
+		};
+		add_action(
+			'transition_post_status',
+			static function ( $new, $old, $post ) use ( $invalidate_enrollment ): void {
+				if ( $new !== $old ) {
+					$invalidate_enrollment( $post->ID, $post );
+				}
+			},
+			10,
+			3
+		);
+		add_action( 'deleted_post', $invalidate_enrollment, 10, 2 );
+		add_action( HookMap::enrollment_status_changed_action(), $invalidate_enrollment, 10, 1 );
+		// Tutor completion resets remove its course_completed comment.
+		$invalidate_completion = static function ( $comment_id, $comment = null ) use ( $invalidate ): void {
+			$comment = $comment instanceof \WP_Comment ? $comment : get_comment( (int) $comment_id );
+			if ( $comment instanceof \WP_Comment && 'course_completed' === $comment->comment_type ) {
+				$invalidate( (int) $comment->comment_post_ID, (int) $comment->user_id );
+			}
+		};
+		add_action( 'deleted_comment', $invalidate_completion, 10, 2 );
+		add_action(
+			'transition_comment_status',
+			static function ( $new, $old, $comment ) use ( $invalidate_completion ): void {
+				if ( $new !== $old ) {
+					$invalidate_completion( $comment->comment_ID, $comment );
+				}
+			},
+			10,
+			3
+		);
 
 		// A deleted course must not leave dangling rules behind.
 		add_action(

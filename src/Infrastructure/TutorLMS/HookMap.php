@@ -31,6 +31,11 @@ defined( 'ABSPATH' ) || exit;
  */
 final class HookMap {
 
+	/** Content delivery bypasses template_redirect, including public lessons. */
+	public static function lesson_content_ajax_actions(): array {
+		return array( 'tutor_render_lesson_content' );
+	}
+
 	/**
 	 * Tutor's entry box applies these filters around the free-enroll and
 	 * purchasable actions. Keep frontend presentation hooks here, alongside
@@ -291,4 +296,23 @@ final class HookMap {
 	public static function course_builder_loaded_action(): string {
 		return (string) apply_filters( 'tlp_hook_course_builder_loaded', 'tutor_before_course_builder_load' );
 	}
+	/** Tutor revocation hooks carry (course ID, learner ID). */
+	public static function enrollment_revoked_actions(): array {
+		return array( 'tutor_after_enrollment_cancelled', 'tutor_after_enrollment_deleted' );
+	}
+
+	/** Tutor status promotions/cancellations carry the enrollment post ID. */
+	public static function enrollment_status_changed_action(): string {
+		return 'tutor/course/enrol_status_change/after';
+	}
+
+	/** Tutor removes completion rows directly, then emits this reset event. */
+	public static function course_progress_reset_action(): string {
+		return 'delete_tutor_course_progress';
+	}
+	/** External learner-cleanup plugin event, after physical mutations. */
+	public static function learner_cleanup_completed_action(): string {
+		return 'tutor_user_cleanup_after_user';
+	}
+
 }

@@ -165,7 +165,7 @@ final class CourseRuleRepository {
 	 * and a delete-then-insert cannot leave a half-applied rule behind.
 	 *
 	 * @param array<int, array<string, mixed>> $rules         Normalised rule payloads.
-	 * @param callable|null                   $before_commit Optional related write; false/WP_Error rolls everything back.
+	 * @param callable|null                    $before_commit Optional related write; false/WP_Error rolls everything back.
 	 * @return int|\WP_Error Number of rules stored, or an error after rollback.
 	 */
 	public function replace_for_course( int $course_id, array $rules, ?callable $before_commit = null ) {
@@ -175,11 +175,30 @@ final class CourseRuleRepository {
 			return 0;
 		}
 
+		$lock = 'tlp_graph_' . md5( DB_NAME . ':' . $wpdb->prefix );
+		if ( '1' !== (string) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 5)', $lock ) ) ) {
+			return new \WP_Error( 'tlp_graph_busy', __( 'Another prerequisite update is in progress. Please retry.', 'tutor-learning-paths' ) );
+		}
+		try {
+			$validation = ( new \SpaceWork\TutorLearningPaths\Application\DependencyService( $this ) )->validate( $course_id, $rules );
+			if ( is_wp_error( $validation ) ) {
+				return $validation;
+			}
+			return $this->replace_locked( $course_id, $rules, $before_commit );
+		} finally {
+			$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock ) );
+		}
+	}
+
+	private function replace_locked( int $course_id, array $rules, ?callable $before_commit ) {
+		global $wpdb;
 		$table = Schema::rules_table();
 		$now   = current_time( 'mysql', true );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		$wpdb->query( 'START TRANSACTION' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			return $this->rollback_error( $wpdb, 'start_failed' );
+		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$deleted = $wpdb->delete( $table, array( 'target_course_id' => $course_id ), array( '%d' ) );

@@ -90,8 +90,8 @@ final class MCP {
 						'prerequisites' => tlp_get_course_prerequisites( $course_id ),
 					);
 				},
-				'permission_callback' => static function (): bool {
-					return current_user_can( 'read' );
+				'permission_callback' => static function ( array $input ): bool {
+					return current_user_can( 'read' ) && tlp_can_inspect_course( (int) $input['course_id'] );
 				},
 				'meta'                => self::meta( true ),
 			)
@@ -112,8 +112,8 @@ final class MCP {
 						'dependent_courses' => tlp_get_dependent_courses( $course_id ),
 					);
 				},
-				'permission_callback' => static function (): bool {
-					return current_user_can( 'read' );
+				'permission_callback' => static function ( array $input ): bool {
+					return current_user_can( 'read' ) && tlp_can_inspect_course( (int) $input['course_id'] );
 				},
 				'meta'                => self::meta( true ),
 			)
@@ -157,7 +157,7 @@ final class MCP {
 	public static function can_read_user( array $input ): bool {
 		$user_id = (int) $input['user_id'];
 
-		return get_current_user_id() === $user_id || current_user_can( 'list_users' );
+		return tlp_can_inspect_course( (int) $input['course_id'] ) && ( get_current_user_id() === $user_id || current_user_can( 'list_users' ) );
 	}
 
 	/**
